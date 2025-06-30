@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,14 +7,20 @@ import { ShoppingCart, User, Clock, Home, Calculator, FileText, Package, BarChar
 import ProductGrid from "@/components/pos/ProductGrid";
 import Cart from "@/components/pos/Cart";
 import OrderSummary from "@/components/pos/OrderSummary";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const POS = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [orderType, setOrderType] = useState<"mesa" | "para_llevar">("mesa");
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // Obtener categorías
   const { data: categories } = useQuery({
@@ -65,6 +70,109 @@ const POS = () => {
       return data;
     }
   });
+
+  // Mutation para procesar orden
+  const processOrder = useMutation({
+    mutationFn: async (orderData: any) => {
+      // Crear la orden
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          type: orderData.type,
+          table_id: orderData.tableId,
+          user_id: 'temp-user-id', // TODO: Implementar autenticación
+          shift_id: 'temp-shift-id', // TODO: Implementar turnos
+          subtotal: orderData.subtotal,
+          tax: orderData.tax,
+          total: orderData.total,
+          payment_method: orderData.paymentMethod,
+          status: 'pendiente'
+        })
+        .select()
+        .single();
+      
+      if (orderError) throw orderError;
+
+      // Crear los items
+      for (const item of orderData.items) {
+        const { data: orderItem, error: itemError } = await supabase
+          .from('order_items')
+          .insert({
+            order_id: order.id,
+            product_id: item.product.id,
+            quantity: item.quantity,
+            unit_price: item.product.price,
+            total_price: item.total
+          })
+          .select()
+          .single();
+        
+        if (itemError) throw itemError;
+
+        // Crear modificadores
+        for (const modifier of item.modifiers) {
+          await supabase
+            .from('order_item_modifiers')
+            .insert({
+              order_item_id: orderItem.id,
+              modifier_id: modifier.id,
+              price: modifier.price || 0
+            });
+        }
+      }
+
+      // Actualizar estado de mesa si es necesario
+      if (orderData.type === 'mesa' && orderData.tableId) {
+        await supabase
+          .from('tables')
+          .update({ status: 'ocupada' })
+          .eq('id', orderData.tableId);
+      }
+
+      return order;
+    },
+    onSuccess: (order) => {
+      toast({
+        title: "¡Orden procesada exitosamente!",
+        description: `Orden ${order.order_number} enviada a cocina.`,
+      });
+      
+      // Limpiar carrito
+      setCartItems([]);
+      setSelectedTable(null);
+      
+      // Invalidar queries
+      queryClient.invalidateQueries({ queryKey: ['tables'] });
+      queryClient.invalidateQueries({ queryKey: ['kitchen-orders'] });
+    },
+    onError: (error) => {
+      console.error('Error procesando orden:', error);
+      toast({
+        title: "Error al procesar orden",
+        description: "Hubo un error al enviar la orden a cocina.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleProcessOrder = (paymentMethod: string) => {
+    const subtotal = getCartTotal();
+    const tax = subtotal * 0.16;
+    const total = subtotal + tax;
+    
+    // Encontrar el ID de la mesa seleccionada
+    const selectedTableData = tables?.find(t => t.number === selectedTable);
+    
+    processOrder.mutate({
+      type: orderType,
+      tableId: selectedTableData?.id || null,
+      subtotal,
+      tax,
+      total,
+      paymentMethod,
+      items: cartItems
+    });
+  };
 
   const addToCart = (product: any, modifiers: any[] = []) => {
     const newItem = {
@@ -128,11 +236,11 @@ const POS = () => {
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
             {[
-              { id: 'pos', name: 'Punto de Venta', icon: Home, active: true },
-              { id: 'kitchen', name: 'Cocina', icon: Calculator },
-              { id: 'orders', name: 'Órdenes', icon: FileText },
-              { id: 'inventory', name: 'Inventario', icon: Package },
-              { id: 'reports', name: 'Reportes', icon: BarChart3 }
+              { id: 'pos', name: 'Punto de Venta', icon: Home, active: true, path: '/' },
+              { id: 'kitchen', name: 'Cocina', icon: Calculator, active: false, path: '/kitchen' },
+              { id: 'orders', name: 'Órdenes', icon: FileText, active: false, path: '/orders' },
+              { id: 'inventory', name: 'Inventario', icon: Package, active: false, path: '/inventory' },
+              { id: 'reports', name: 'Reportes', icon: BarChart3, active: false, path: '/reports' }
             ].map((tab) => (
               <Button
                 key={tab.id}
@@ -142,6 +250,7 @@ const POS = () => {
                     ? 'border-red-500 bg-red-50 text-red-600' 
                     : 'border-transparent'
                 }`}
+                onClick={() => tab.path && navigate(tab.path)}
               >
                 <tab.icon className="w-4 h-4 mr-2" />
                 {tab.name}
@@ -266,15 +375,8 @@ const POS = () => {
                     total={getCartTotal()}
                     orderType={orderType}
                     tableNumber={selectedTable}
-                    onProcessOrder={() => {
-                      // Aquí se procesaría la orden
-                      console.log('Procesando orden:', {
-                        items: cartItems,
-                        type: orderType,
-                        table: selectedTable,
-                        total: getCartTotal()
-                      });
-                    }}
+                    onProcessOrder={handleProcessOrder}
+                    isProcessing={processOrder.isPending}
                   />
                 </Card>
               )}

@@ -6,17 +6,25 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CreditCard, DollarSign, Smartphone, Receipt } from "lucide-react";
+import { CreditCard, DollarSign, Smartphone, Receipt, Loader2 } from "lucide-react";
 
 interface OrderSummaryProps {
   items: any[];
   total: number;
   orderType: "mesa" | "para_llevar";
   tableNumber?: number | null;
-  onProcessOrder: () => void;
+  onProcessOrder: (paymentMethod: string) => void;
+  isProcessing?: boolean;
 }
 
-const OrderSummary = ({ items, total, orderType, tableNumber, onProcessOrder }: OrderSummaryProps) => {
+const OrderSummary = ({ 
+  items, 
+  total, 
+  orderType, 
+  tableNumber, 
+  onProcessOrder,
+  isProcessing = false 
+}: OrderSummaryProps) => {
   const [paymentMethod, setPaymentMethod] = useState<"efectivo" | "tarjeta" | "transferencia">("efectivo");
   
   const tax = total * 0.16; // IVA 16%
@@ -28,6 +36,10 @@ const OrderSummary = ({ items, total, orderType, tableNumber, onProcessOrder }: 
     { value: "tarjeta", label: "Tarjeta", icon: CreditCard, color: "blue" },
     { value: "transferencia", label: "Transferencia", icon: Smartphone, color: "purple" }
   ];
+
+  const handleProcessOrder = () => {
+    onProcessOrder(paymentMethod);
+  };
 
   return (
     <div className="space-y-4">
@@ -102,18 +114,25 @@ const OrderSummary = ({ items, total, orderType, tableNumber, onProcessOrder }: 
       {/* Botones de acción */}
       <div className="space-y-2">
         <Button 
-          onClick={onProcessOrder}
+          onClick={handleProcessOrder}
           className="w-full bg-green-600 hover:bg-green-700 text-white py-3 text-lg font-semibold"
-          disabled={orderType === "mesa" && !tableNumber}
+          disabled={(orderType === "mesa" && !tableNumber) || isProcessing}
         >
-          {orderType === "mesa" ? "Enviar a Cocina" : "Procesar Orden"}
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Procesando...
+            </>
+          ) : (
+            orderType === "mesa" ? "Enviar a Cocina" : "Procesar Orden"
+          )}
         </Button>
         
         <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" className="text-sm">
+          <Button variant="outline" className="text-sm" disabled={isProcessing}>
             Guardar Borrador
           </Button>
-          <Button variant="outline" className="text-sm">
+          <Button variant="outline" className="text-sm" disabled={isProcessing}>
             Imprimir Pre-cuenta
           </Button>
         </div>
