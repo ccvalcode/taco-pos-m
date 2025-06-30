@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import Navigation from "@/components/Navigation";
 
 const POS = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -209,6 +209,7 @@ const POS = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <Navigation />
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-4">

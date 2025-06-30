@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,6 +7,7 @@ import { Clock, ChefHat, CheckCircle, AlertCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import Navigation from "@/components/Navigation";
 
 const Kitchen = () => {
   const { toast } = useToast();
@@ -127,6 +127,7 @@ const Kitchen = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <Navigation />
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
