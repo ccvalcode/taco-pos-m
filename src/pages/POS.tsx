@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,7 @@ const POS = () => {
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
+          order_number: '', // Se generará automáticamente por el trigger
           type: orderData.type,
           table_id: orderData.tableId,
           user_id: 'temp-user-id', // TODO: Implementar autenticación
@@ -86,7 +88,7 @@ const POS = () => {
           tax: orderData.tax,
           total: orderData.total,
           payment_method: orderData.paymentMethod,
-          status: 'pendiente'
+          status: 'pendiente' as const
         })
         .select()
         .single();

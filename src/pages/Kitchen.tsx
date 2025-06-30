@@ -51,7 +51,7 @@ const Kitchen = () => {
 
   // Mutation para actualizar estado de orden
   const updateOrderStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string, status: string }) => {
+    mutationFn: async ({ orderId, status }: { orderId: string, status: 'pendiente' | 'en_preparacion' | 'lista' | 'pagada' | 'entregada' }) => {
       const { error } = await supabase
         .from('orders')
         .update({ status, updated_at: new Date().toISOString() })
