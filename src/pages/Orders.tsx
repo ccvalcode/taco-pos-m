@@ -10,10 +10,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 
+type OrderStatus = 'pendiente' | 'en_preparacion' | 'lista' | 'pagada' | 'entregada' | 'cancelada';
+
 const Orders = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pendiente' | 'en_preparacion' | 'lista' | 'pagada' | 'entregada' | 'cancelada'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | OrderStatus>('all');
 
   // Obtener órdenes
   const { data: orders, isLoading } = useQuery({
@@ -24,7 +26,7 @@ const Orders = () => {
         .select(`
           *,
           tables (number, name),
-          users (name),
+          users!orders_user_id_fkey (name),
           order_items (
             *,
             products (name),
@@ -49,7 +51,7 @@ const Orders = () => {
 
   // Cambiar estado de orden
   const updateOrderStatus = useMutation({
-    mutationFn: async ({ orderId, status }: { orderId: string, status: string }) => {
+    mutationFn: async ({ orderId, status }: { orderId: string, status: OrderStatus }) => {
       const { error } = await supabase
         .from('orders')
         .update({ 
@@ -153,7 +155,7 @@ const Orders = () => {
             <div className="flex gap-4 items-center">
               <div>
                 <label className="block text-sm font-medium mb-2">Estado</label>
-                <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                <Select value={statusFilter} onValueChange={(value: 'all' | OrderStatus) => setStatusFilter(value)}>
                   <SelectTrigger className="w-48">
                     <SelectValue />
                   </SelectTrigger>

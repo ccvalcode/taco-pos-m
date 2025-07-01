@@ -11,13 +11,14 @@ import { Users as UsersIcon, UserPlus, Edit, Trash2, Clock, DollarSign } from "l
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import Navigation from "@/components/Navigation";
 
 const Users = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isShiftDialogOpen, setIsShiftDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
+  const [editingUser, setEditingUser] = useState<any>(null);
   const [userForm, setUserForm] = useState({
     name: '',
     email: '',
@@ -51,7 +52,7 @@ const Users = () => {
         .from('shifts')
         .select(`
           *,
-          users (name, email)
+          users!shifts_user_id_fkey (name, email)
         `)
         .eq('is_active', true)
         .order('opened_at', { ascending: false });
@@ -187,6 +188,7 @@ const Users = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50">
+      <Navigation />
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">

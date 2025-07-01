@@ -9,6 +9,7 @@ import { Calculator, DollarSign, CreditCard, Smartphone, FileText, AlertTriangle
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import Navigation from "@/components/Navigation";
 
 const CashCut = () => {
   const { toast } = useToast();
@@ -24,7 +25,7 @@ const CashCut = () => {
         .from('shifts')
         .select(`
           *,
-          users (name, email)
+          users!shifts_user_id_fkey (name, email)
         `)
         .eq('is_active', true);
       
@@ -148,6 +149,7 @@ const CashCut = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
+      <Navigation />
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
