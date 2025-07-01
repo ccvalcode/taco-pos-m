@@ -11,12 +11,13 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import Navigation from "@/components/Navigation";
 
 const Sales = () => {
   const [dateFrom, setDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [paymentMethod, setPaymentMethod] = useState('all');
-  const [orderType, setOrderType] = useState('all');
+  const [paymentMethod, setPaymentMethod] = useState<'all' | 'efectivo' | 'tarjeta' | 'transferencia'>('all');
+  const [orderType, setOrderType] = useState<'all' | 'mesa' | 'para_llevar'>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Obtener órdenes con filtros
@@ -27,7 +28,7 @@ const Sales = () => {
         .from('orders')
         .select(`
           *,
-          tables (number),
+          tables (number, name),
           users (name),
           order_items (
             *,
@@ -115,6 +116,7 @@ const Sales = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <Navigation />
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
@@ -157,7 +159,7 @@ const Sales = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Método de Pago</label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <Select value={paymentMethod} onValueChange={(value: 'all' | 'efectivo' | 'tarjeta' | 'transferencia') => setPaymentMethod(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -171,7 +173,7 @@ const Sales = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Tipo de Orden</label>
-                <Select value={orderType} onValueChange={setOrderType}>
+                <Select value={orderType} onValueChange={(value: 'all' | 'mesa' | 'para_llevar') => setOrderType(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
