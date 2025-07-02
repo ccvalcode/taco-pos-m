@@ -17,7 +17,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Search } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle, DialogHeader } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Search, Settings } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -31,26 +33,23 @@ interface UserRow {
   permissions: string[];
 }
 
-/* --------------------------------------------------------------------------
-⚠️  NOTA SOBRE LA RELACIÓN users ↔ user_permissions
-───────────────────────────────────────────────────
-Supabase arrojó el error:
-  "Could not embed because more than one relationship was found for 'users' and 'user_permissions'"
-Eso significa que la tabla `user_permissions` tiene MÁS DE UNA clave foránea
-que apunta a `users` (ej.: `user_id` y `manager_id`).
-Para evitar ambigüedad, hacemos DOS consultas: primero users y luego todas las
-filas de user_permissions, combinándolas en memoria.
---------------------------------------------------------------------------- */
+const ALL_PERMISSIONS = [
+  "admin",
+  "can_create",
+  "can_edit",
+  "can_delete",
+  "view_reports",
+  "manage_users",
+];
 
 const UsersPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [selectedUser, setSelectedUser] = useState<UserRow | null>(null);
+  const [editingPermissions, setEditingPermissions] = useState<string[]>([]);
 
-  /** ------------------------------------------------------------------
-   * QUERY: usuarios (sin JOIN ambiguo)
-   * ------------------------------------------------------------------ */
   const {
     data: users,
     isLoading: usersLoading,
@@ -58,7 +57,6 @@ const UsersPage = () => {
   } = useQuery<UserRow[]>({
     queryKey: ["users"],
     queryFn: async () => {
-      // 1️⃣  Trae todas las filas de users
       const { data: usersData, error: usersErr } = await supabase
         .from("users")
         .select("id, email, name, role, is_active")
@@ -66,7 +64,6 @@ const UsersPage = () => {
 
       if (usersErr) throw usersErr;
 
-      // 2️⃣  Trae permisos por separado para TODOS los usuarios devueltos
       const ids = usersData?.map((u) => u.id) || [];
       let permissionsMap: Record<string, string[]> = {};
 
@@ -93,9 +90,6 @@ const UsersPage = () => {
     },
   });
 
-  /** ------------------------------------------------------------------
-   * MUTATION — activar / desactivar usuario
-   * ------------------------------------------------------------------ */
   const toggleUserStatus = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
       const { error } = await supabase
@@ -117,32 +111,47 @@ const UsersPage = () => {
     },
   });
 
-  /** ------------------------------------------------------------------
-   * DATOS FILTRADOS
-   * ------------------------------------------------------------------ */
+  const updatePermissions = useMutation({
+    mutationFn: async ({ userId, permissions }: { userId: string; permissions: string[] }) => {
+      const { error: delError } = await supabase
+        .from("user_permissions")
+        .delete()
+        .eq("user_id", userId);
+      if (delError) throw delError;
+
+      const inserts = permissions.map((perm) => ({ user_id: userId, permission: perm }));
+      const { error: insError } = await supabase.from("user_permissions").insert(inserts);
+      if (insError) throw insError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+      toast({ title: "Permisos actualizados" });
+      setSelectedUser(null);
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Error al actualizar permisos",
+        description: e.message ?? "No se pudo actualizar la lista de permisos.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const filteredUsers = useMemo(() => {
     if (!users) return [];
-
     return users.filter((u) => {
-      if (
-        (filter === "active" && !u.is_active) ||
-        (filter === "inactive" && u.is_active)
-      )
-        return false;
-
-      if (!search.trim()) return true;
-
+      if ((filter === "active" && !u.is_active) || (filter === "inactive" && u.is_active)) return false;
       const term = search.toLowerCase();
       return (
         u.name.toLowerCase().includes(term) ||
-        u.email.toLowerCase().includes(term)
+        u.email.toLowerCase().includes(term) ||
+        u.permissions.some((perm) => perm.toLowerCase().includes(term))
       );
     });
   }, [users, search, filter]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 to-indigo-50">
-      {/* ENCABEZADO */}
       <div className="bg-indigo-600 text-white shadow-lg">
         <div className="container mx-auto px-4 py-6">
           <h1 className="text-3xl font-bold">👥 Gestión de Usuarios</h1>
@@ -151,33 +160,27 @@ const UsersPage = () => {
       </div>
 
       <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* BARRA DE FILTRO */}
         <Card>
           <CardContent className="pt-6 space-y-4">
             <div className="flex gap-4 items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <Input
-                  placeholder="Buscar por nombre o email..."
+                  placeholder="Buscar por nombre, email o permiso..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10"
                 />
               </div>
-
               <div className="flex gap-2">
-                {([
-                  { label: "Todos", value: "all" },
-                  { label: "Activos", value: "active" },
-                  { label: "Inactivos", value: "inactive" },
-                ] as const).map((opt) => (
+                {["all", "active", "inactive"].map((value) => (
                   <Button
-                    key={opt.value}
-                    variant={filter === opt.value ? "default" : "outline"}
+                    key={value}
+                    variant={filter === value ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setFilter(opt.value)}
+                    onClick={() => setFilter(value as any)}
                   >
-                    {opt.label}
+                    {value === "all" ? "Todos" : value === "active" ? "Activos" : "Inactivos"}
                   </Button>
                 ))}
               </div>
@@ -185,7 +188,6 @@ const UsersPage = () => {
           </CardContent>
         </Card>
 
-        {/* TABLA USUARIOS */}
         <Card>
           <CardHeader>
             <CardTitle>Usuarios ({filteredUsers.length})</CardTitle>
@@ -198,9 +200,7 @@ const UsersPage = () => {
                 Error: {(usersError as Error).message}
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Sin resultados
-              </div>
+              <div className="text-center py-8 text-gray-500">Sin resultados</div>
             ) : (
               <Table>
                 <TableHeader>
@@ -208,6 +208,7 @@ const UsersPage = () => {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
+                    <TableHead>Permisos</TableHead>
                     <TableHead>Estado</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
@@ -215,26 +216,34 @@ const UsersPage = () => {
                 <TableBody>
                   {filteredUsers.map((u) => (
                     <TableRow key={u.id}>
-                      <TableCell>
-                        <div className="font-medium">{u.name}</div>
-                      </TableCell>
+                      <TableCell><div className="font-medium">{u.name}</div></TableCell>
                       <TableCell>{u.email}</TableCell>
+                      <TableCell><Badge variant="secondary">{u.role}</Badge></TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{u.role}</Badge>
+                        {u.permissions.length ? (
+                          <div className="flex flex-wrap gap-1">
+                            {u.permissions.map((perm) => (
+                              <Badge key={perm} variant="outline" className="text-xs">
+                                {perm}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">Sin permisos</span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={u.is_active ? "default" : "outline"}>
-                          {u.is_active ? "Activo" : "Inactivo"}
-                        </Badge>
+                        <Badge variant={u.is_active ? "default" : "outline"}>{u.is_active ? "Activo" : "Inactivo"}</Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="flex gap-2 items-center">
                         <Switch
                           checked={u.is_active}
-                          onCheckedChange={(checked) =>
-                            toggleUserStatus.mutate({ id: u.id, is_active: checked })
-                          }
+                          onCheckedChange={(checked) => toggleUserStatus.mutate({ id: u.id, is_active: checked })}
                           disabled={toggleUserStatus.isPending}
                         />
+                        <Button variant="ghost" size="icon" onClick={() => { setSelectedUser(u); setEditingPermissions(u.permissions); }}>
+                          <Settings className="w-4 h-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -244,6 +253,41 @@ const UsersPage = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar permisos de {selectedUser?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {ALL_PERMISSIONS.map((perm) => (
+              <div key={perm} className="flex items-center gap-3">
+                <Checkbox
+                  checked={editingPermissions.includes(perm)}
+                  onCheckedChange={(checked) => {
+                    setEditingPermissions((prev) =>
+                      checked ? [...prev, perm] : prev.filter((p) => p !== perm)
+                    );
+                  }}
+                />
+                <span className="text-sm">{perm}</span>
+              </div>
+            ))}
+            <div className="pt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSelectedUser(null)}>Cancelar</Button>
+              <Button
+                onClick={() => {
+                  if (selectedUser) {
+                    updatePermissions.mutate({ userId: selectedUser.id, permissions: editingPermissions });
+                  }
+                }}
+              >
+                Guardar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
