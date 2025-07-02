@@ -1,7 +1,7 @@
 // AuthContext.tsx
-import { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { createContext, useContext, useEffect, useState } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
 interface UserProfile {
   id: string;
@@ -34,119 +34,109 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /* -------------- Helpers -------------- */
   const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data: profile, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', userId)
-        .single();
+    const { data: profile, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("auth_user_id", userId)
+      .single();
 
-      if (error || !profile) {
-        console.error('Error fetching user profile:', error);
-        return null;
-      }
+    if (error || !profile) return null;
 
-      const { data: permissions, error: permError } = await supabase
-        .from('user_permissions')
-        .select('permission')
-        .eq('user_id', profile.id);
+    const { data: perms, error: permErr } = await supabase
+      .from("user_permissions")
+      .select("permission")
+      .eq("user_id", profile.id);
 
-      if (permError) {
-        console.error('Error fetching permissions:', permError);
-      }
+    if (permErr) console.error(permErr);
 
-      return {
-        ...profile,
-        permissions: permissions?.map((p: any) => p.permission) || [],
-      };
-    } catch (err) {
-      console.error('Exception fetching user profile:', err);
-      return null;
-    }
+    return {
+      ...profile,
+      permissions: perms?.map((p) => p.permission) || [],
+    };
   };
 
+  /* -------------- Auth flow -------------- */
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
+    const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false); // Desactivamos loading inmediatamente
 
       if (session?.user) {
-        const profile = await fetchUserProfile(session.user.id);
-        if (mounted) {
-          setUserProfile(profile);
-        }
+        const prof = await fetchUserProfile(session.user.id);
+        if (mounted) setUserProfile(prof);
       }
+      setLoading(false);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_evt, session) => {
         if (!mounted) return;
-
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false); // Desactivamos loading inmediatamente
 
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) {
-            setUserProfile(profile);
-          }
+          const prof = await fetchUserProfile(session.user.id);
+          if (mounted) setUserProfile(prof);
         } else {
-          if (mounted) {
-            setUserProfile(null);
-          }
+          setUserProfile(null);
         }
+        setLoading(false);
       }
     );
 
-    initializeAuth();
-
+    init();
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
   }, []);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error };
-  };
+  /* -------------- Mutations -------------- */
+  const signIn = async (email: string, password: string) =>
+    supabase.auth.signInWithPassword({ email, password });
 
-  const signUp = async (email: string, password: string, name: string) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { name },
-        emailRedirectTo: `${window.location.origin}/`,
-      },
+  const signUp = async (email: string, password: string, name: string) =>
+    supabase.auth.signUp({
+      email, password,
+      options: { data: { name }, emailRedirectTo: `${window.location.origin}/` },
     });
-    return { error };
-  };
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+  const signOut = async () => supabase.auth.signOut();
 
-  const hasPermission = (permission: string) =>
-    userProfile?.permissions?.includes(permission) || false;
+  /* -------------- Permisos (fixture) -------------- */
+  const hasPermission = (perm: string) =>
+    (userProfile?.permissions ?? [])
+      .map((p) => p.toLowerCase())
+      .includes(perm.toLowerCase());
 
+  /* -------------- Context value -------------- */
   return (
-    <AuthContext.Provider value={{ user, session, userProfile, loading, signIn, signUp, signOut, hasPermission }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        userProfile,
+        loading,
+        signIn,
+        signUp,
+        signOut,
+        hasPermission,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
-  return context;
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
+  return ctx;
 }
