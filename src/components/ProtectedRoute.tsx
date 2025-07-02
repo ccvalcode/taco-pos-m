@@ -23,13 +23,7 @@ const ProtectedRoute: React.FC<Props> = ({ children, requiredPermission }) => {
     return <Navigate to="/auth" replace />;
   }
 
-  if (
-    requiredPermission &&
-    !userProfile.role /* o tu lógica de permisos, ej: userProfile.permissions.includes(...) */
-  ) {
-    return <Navigate to="/" replace />;
-  }
-
+  // Si requieres lógica adicional de permisos, agrégala aquí
   return <>{children}</>;
 };
 
