@@ -69,7 +69,11 @@ const App = () => (
                 <Reports />
               </ProtectedRoute>
             } />
-            <Route path="/index" element={<Index />} />
+            <Route path="/index" element={
+              <ProtectedRoute>
+                <Index />
+              </ProtectedRoute>
+            } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,15 +13,18 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
+import type { Database } from "@/integrations/supabase/types";
+
+type AppPermission = Database['public']['Enums']['app_permission'];
 
 const AVAILABLE_PERMISSIONS = [
-  { id: 'pos_access', label: 'Acceso al POS', description: 'Permite usar el sistema de punto de venta' },
-  { id: 'kitchen_access', label: 'Acceso a Cocina', description: 'Permite ver y gestionar órdenes de cocina' },
-  { id: 'sales_view', label: 'Ver Ventas', description: 'Permite ver reportes de ventas' },
-  { id: 'users_manage', label: 'Gestionar Usuarios', description: 'Permite crear y editar usuarios' },
-  { id: 'cash_manage', label: 'Gestionar Caja', description: 'Permite hacer cortes de caja' },
-  { id: 'reports_view', label: 'Ver Reportes', description: 'Permite acceder a todos los reportes' },
-  { id: 'inventory_manage', label: 'Gestionar Inventario', description: 'Permite gestionar productos e inventario' }
+  { id: 'pos_access' as AppPermission, label: 'Acceso al POS', description: 'Permite usar el sistema de punto de venta' },
+  { id: 'kitchen_access' as AppPermission, label: 'Acceso a Cocina', description: 'Permite ver y gestionar órdenes de cocina' },
+  { id: 'sales_view' as AppPermission, label: 'Ver Ventas', description: 'Permite ver reportes de ventas' },
+  { id: 'users_manage' as AppPermission, label: 'Gestionar Usuarios', description: 'Permite crear y editar usuarios' },
+  { id: 'cash_manage' as AppPermission, label: 'Gestionar Caja', description: 'Permite hacer cortes de caja' },
+  { id: 'reports_view' as AppPermission, label: 'Ver Reportes', description: 'Permite acceder a todos los reportes' },
+  { id: 'inventory_manage' as AppPermission, label: 'Gestionar Inventario', description: 'Permite gestionar productos e inventario' }
 ];
 
 const Users = () => {
@@ -116,7 +120,7 @@ const Users = () => {
 
   // Actualizar permisos de usuario
   const updatePermissionsMutation = useMutation({
-    mutationFn: async ({ userId, permissions }: { userId: string, permissions: string[] }) => {
+    mutationFn: async ({ userId, permissions }: { userId: string, permissions: AppPermission[] }) => {
       // Eliminar permisos existentes
       await supabase
         .from('user_permissions')
@@ -229,6 +233,14 @@ const Users = () => {
   const handleUserSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createUserMutation.mutate(userForm);
+  };
+
+  const handleShiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    startShiftMutation.mutate({
+      userId: shiftForm.userId,
+      initialCash: shiftForm.initialCash
+    });
   };
 
   const openEditUser = (user: any) => {
