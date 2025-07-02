@@ -343,9 +343,7 @@ const UsersPage = () => {
       {/* Diálogo permisos */}
       <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Permisos de {selectedUser?.name}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Permisos de {selectedUser?.name}</DialogTitle></DialogHeader>
           <div className="space-y-2">
             {ALL_PERMISSIONS.map((perm) => (
               <label key={perm} className="flex items-center gap-2">
@@ -366,7 +364,9 @@ const UsersPage = () => {
             <Button onClick={() => selectedUser && updatePermissions.mutate({
               userId: selectedUser.id,
               permissions: editingPermissions,
-            })}>Guardar</Button>
+            })}>
+              Guardar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
