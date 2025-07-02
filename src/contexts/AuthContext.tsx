@@ -1,7 +1,7 @@
 // src/contexts/AuthContext.tsx
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { User } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 
 interface UserProfile {
   id: number;
@@ -30,25 +30,27 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
 
     const fetchUserProfile = async (authUser: User) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from<UserProfile>("users")
         .select("*")
         .eq("auth_user_id", authUser.id)
         .single();
-      if (mounted) setUserProfile(data ?? null);
+      if (data && mounted) setUserProfile(data);
     };
 
     const initializeAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
           await fetchUserProfile(session.user);
@@ -86,10 +88,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const signIn = (email: string, password: string) =>
-    supabase.auth
-      .signInWithPassword({ email, password })
-      .then(({ error }) => ({ error }));
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    return { error };
+  };
 
   const signUp = async (
     email: string,
@@ -107,7 +112,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     if (userId) {
       const { error: profileError } = await supabase
         .from("users")
-        .insert([{ auth_user_id: userId, email, name, role: "user", is_active: true }]);
+        .insert([
+          {
+            auth_user_id: userId,
+            email,
+            name,
+            role: "user",
+            is_active: true,
+          },
+        ]);
       if (profileError) {
         console.error("Error creando perfil inicial:", profileError);
         return { error: profileError };
@@ -123,13 +136,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, userProfile, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider
+      value={{ user, userProfile, loading, signIn, signUp, signOut }}
+    >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be inside AuthProvider");
   return ctx;

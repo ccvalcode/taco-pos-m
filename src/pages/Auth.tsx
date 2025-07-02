@@ -9,7 +9,7 @@ const Auth: React.FC = () => {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isRegister, setIsRegister] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   if (authLoading) {
     return (
@@ -19,26 +19,35 @@ const Auth: React.FC = () => {
     );
   }
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    const result = isRegister
+
+    const action = isRegister
       ? await signUp(email, password, name)
       : await signIn(email, password);
-    if (result.error) setError(result.error.message);
+
+    if (action.error) {
+      setError(action.error.message);
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <form onSubmit={handleSubmit} className="space-y-4 p-6 border rounded shadow-md w-full max-w-sm">
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4 p-6 border rounded shadow-md w-full max-w-sm"
+      >
         {isRegister && (
           <input
             type="text"
             placeholder="Nombre"
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={(e) => setName(e.target.value)}
             className="w-full p-2 border rounded"
           />
         )}
@@ -46,23 +55,26 @@ const Auth: React.FC = () => {
           type="email"
           placeholder="Correo"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           className="w-full p-2 border rounded"
         />
         <input
-            type="password"
-            placeholder="Contraseña"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="w-full p-2 border rounded"
+          type="password"
+          placeholder="Contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-2 border rounded"
         />
         {error && <div className="text-red-600">{error}</div>}
-        <button type="submit" className="w-full py-2 rounded bg-blue-600 text-white">
+        <button
+          type="submit"
+          className="w-full py-2 rounded bg-blue-600 text-white"
+        >
           {isRegister ? "Registrar" : "Iniciar sesión"}
         </button>
         <div
           className="text-center text-sm text-blue-600 cursor-pointer"
-          onClick={() => setIsRegister(prev => !prev)}
+          onClick={() => setIsRegister(!isRegister)}
         >
           {isRegister ? "¿Ya tienes cuenta? Inicia sesión" : "¿No tienes cuenta? Regístrate"}
         </div>
