@@ -18,18 +18,18 @@ const Auth = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { user, signIn, signUp, loading: authLoading, isInitialized } = useAuth();
+  const { user, signIn, signUp } = useAuth();
 
   // Obtener la ruta de donde venía el usuario
   const from = location.state?.from?.pathname || '/';
 
   useEffect(() => {
-    // Solo redirigir si la auth está inicializada y hay usuario
-    if (isInitialized && user && !authLoading) {
-      console.log('🏠 Usuario autenticado, redirigiendo a:', from);
+    // Si el usuario ya está autenticado, redirigir
+    if (user) {
+      console.log('User already authenticated, redirecting to:', from);
       navigate(from, { replace: true });
     }
-  }, [user, navigate, from, isInitialized, authLoading]);
+  }, [user, navigate, from]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +144,7 @@ const Auth = () => {
   };
 
   // Si el usuario ya está autenticado, mostrar mensaje de redirección
-  if (isInitialized && user) {
+  if (user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
         <Card className="w-full max-w-md">
@@ -152,21 +152,6 @@ const Auth = () => {
             <div className="text-6xl mb-4">🌮</div>
             <h2 className="text-2xl font-bold mb-2">¡Ya estás autenticado!</h2>
             <p className="text-gray-600 mb-4">Redirigiendo al sistema...</p>
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-500 mx-auto"></div>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Mostrar loading mientras se inicializa
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-6 text-center">
-            <div className="text-6xl mb-4">🌮</div>
-            <h2 className="text-2xl font-bold mb-2">Cargando...</h2>
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-500 mx-auto"></div>
           </CardContent>
         </Card>
