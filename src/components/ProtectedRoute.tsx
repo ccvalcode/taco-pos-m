@@ -20,7 +20,7 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     })
   );
 
-  // 🚧 Si todavía estamos cargando el estado de autenticación
+  // 🚧 Todavía cargando
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
@@ -33,19 +33,34 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     );
   }
 
-  // 🚫 No hay usuario autenticado
+  // 🚫 No hay sesión iniciada
   if (!user) {
     console.warn("ProtectedRoute: No user, redirecting to /auth");
     return <Navigate to="/auth" replace />;
   }
 
-  // 🚫 El perfil del usuario no está cargado
+  // 🚫 Usuario sin perfil creado en DB
   if (!userProfile) {
-    console.warn("ProtectedRoute: No user profile, redirecting to /auth");
-    return <Navigate to="/auth" replace />;
+    console.error("ProtectedRoute: Usuario autenticado pero sin perfil en DB.");
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-yellow-600 mb-4">
+            Perfil Incompleto
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Tu cuenta está activa, pero no tiene un perfil asignado en la base de datos.
+          </p>
+          <p className="text-sm text-gray-500">
+            Contacta a un administrador para que cree tu perfil.
+          </p>
+        </Card>
+      </div>
+    );
   }
 
-  // 🚫 El usuario no tiene el permiso requerido
+  // 🚫 Usuario sin permisos
   if (requiredPermission && !hasPermission(requiredPermission)) {
     console.warn(
       `ProtectedRoute: Access denied. Missing permission "${requiredPermission}"`
@@ -69,8 +84,8 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     );
   }
 
-  // ✅ Todo correcto, mostrar los hijos
+  // ✅ Todo correcto
   return <>{children}</>;
 };
 
-export default ProtectedRoute;
+export
