@@ -1,10 +1,6 @@
+
 import { useState, useEffect } from "react";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
@@ -13,19 +9,20 @@ import { useToast } from "@/hooks/use-toast";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-
+  
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
+    // Si el usuario ya está autenticado, redirigir
     if (user) {
-      console.log("User already authenticated, redirecting...");
-      navigate("/", { replace: true });
+      console.log('User already authenticated, redirecting...');
+      navigate('/', { replace: true });
     }
   }, [user, navigate]);
 
@@ -35,51 +32,43 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        console.log("Attempting login with:", email);
+        console.log('Attempting login with:', email);
         const { error } = await signIn(email, password);
-
+        
         if (error) {
-          console.error("Login error:", error);
+          console.error('Login error:', error);
           throw error;
         }
-
-        console.log("Login successful");
+        
+        console.log('Login successful');
         toast({
           title: "¡Bienvenido!",
           description: "Has iniciado sesión correctamente."
         });
-
-        // No redirigimos manualmente, useEffect se encarga
+        
+        // No necesitamos redirigir manualmente, useEffect se encargará
       } else {
-        console.log("Attempting signup with:", email);
         const { error } = await signUp(email, password, name);
-
+        
         if (error) throw error;
-
+        
         toast({
           title: "Cuenta creada",
           description: "Revisa tu email para confirmar tu cuenta."
         });
-
-        // Opcional: limpiar formulario
-        setName("");
-        setEmail("");
-        setPassword("");
-        setIsLogin(true);
       }
     } catch (error: any) {
-      console.error("Auth error:", error);
-
+      console.error('Auth error:', error);
       let errorMessage = "Ocurrió un error durante la autenticación.";
-
-      if (error.message?.includes("Invalid login credentials")) {
+      
+      if (error.message.includes('Invalid login credentials')) {
         errorMessage = "Credenciales incorrectas. Verifica tu email y contraseña.";
-      } else if (error.message?.includes("Email not confirmed")) {
+      } else if (error.message.includes('Email not confirmed')) {
         errorMessage = "Confirma tu email antes de iniciar sesión.";
-      } else if (error.message?.includes("User already registered")) {
+      } else if (error.message.includes('User already registered')) {
         errorMessage = "El usuario ya está registrado. Intenta iniciar sesión.";
       }
-
+      
       toast({
         title: "Error",
         description: errorMessage,
@@ -90,6 +79,7 @@ const Auth = () => {
     }
   };
 
+  // Si el usuario ya está autenticado, mostrar mensaje de redirección
   if (user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">
@@ -114,7 +104,7 @@ const Auth = () => {
           </CardTitle>
           <p className="text-gray-600">Sistema POS</p>
         </CardHeader>
-
+        
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
             {!isLogin && (
@@ -129,7 +119,7 @@ const Auth = () => {
                 />
               </div>
             )}
-
+            
             <div>
               <label className="block text-sm font-medium mb-2">Email</label>
               <Input
@@ -140,7 +130,7 @@ const Auth = () => {
                 required
               />
             </div>
-
+            
             <div>
               <label className="block text-sm font-medium mb-2">Contraseña</label>
               <Input
@@ -151,53 +141,38 @@ const Auth = () => {
                 required
               />
             </div>
-
-            <Button
-              type="submit"
+            
+            <Button 
+              type="submit" 
               className="w-full bg-red-600 hover:bg-red-700"
               disabled={loading}
             >
-              {loading
-                ? "Procesando..."
-                : isLogin
-                ? "Iniciar Sesión"
-                : "Crear Cuenta"}
+              {loading ? 'Procesando...' : (isLogin ? 'Iniciar Sesión' : 'Crear Cuenta')}
             </Button>
           </form>
-
+          
           <div className="text-center mt-4">
             <Button
               variant="ghost"
               onClick={() => setIsLogin(!isLogin)}
               className="text-sm"
             >
-              {isLogin
-                ? "¿No tienes cuenta? Regístrate"
-                : "¿Ya tienes cuenta? Inicia sesión"}
+              {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
             </Button>
           </div>
 
+          {/* Credenciales de prueba */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <p className="text-sm font-medium text-gray-700 mb-2">
-              Credenciales de prueba:
-            </p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Credenciales de prueba:</p>
             <div className="space-y-2">
               <div>
-                <p className="text-xs text-gray-600 font-semibold">
-                  Super Admin:
-                </p>
-                <p className="text-xs text-gray-600">
-                  Email: superadmin@taqueria.com
-                </p>
+                <p className="text-xs text-gray-600 font-semibold">Super Admin:</p>
+                <p className="text-xs text-gray-600">Email: superadmin@taqueria.com</p>
                 <p className="text-xs text-gray-600">Contraseña: admin123</p>
               </div>
               <div>
-                <p className="text-xs text-gray-600 font-semibold">
-                  Admin:
-                </p>
-                <p className="text-xs text-gray-600">
-                  Email: admin@taqueria.com
-                </p>
+                <p className="text-xs text-gray-600 font-semibold">Admin:</p>
+                <p className="text-xs text-gray-600">Email: admin@taqueria.com</p>
                 <p className="text-xs text-gray-600">Contraseña: admin123</p>
               </div>
             </div>
