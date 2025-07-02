@@ -1,5 +1,4 @@
-// AuthContext.tsx
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,6 +23,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,108 +35,187 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   /* -------------- Helpers -------------- */
-  const fetchUserProfile = async (userId: string) => {
-    const { data: profile, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("auth_user_id", userId)
-      .single();
+  const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
+    try {
+      const { data: profile, error } = await supabase
+        .from("users")
+        .select("*")
+        .eq("auth_user_id", userId)
+        .single();
 
-    if (error || !profile) return null;
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
 
-    const { data: perms, error: permErr } = await supabase
-      .from("user_permissions")
-      .select("permission")
-      .eq("user_id", profile.id);
+      if (!profile) {
+        console.warn('No profile found for user:', userId);
+        return null;
+      }
 
-    if (permErr) console.error(permErr);
+      // Obtener permisos del usuario
+      const { data: perms, error: permErr } = await supabase
+        .from("user_permissions")
+        .select("permission")
+        .eq("user_id", profile.id);
 
-    return {
-      ...profile,
-      permissions: perms?.map((p) => p.permission) || [],
-    };
-  };
+      if (permErr) {
+        console.error('Error fetching user permissions:', permErr);
+      }
+
+      return {
+        ...profile,
+        permissions: perms?.map((p) => p.permission) || [],
+      };
+    } catch (error) {
+      console.error('Unexpected error fetching user profile:', error);
+      return null;
+    }
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    if (user) {
+      const profile = await fetchUserProfile(user.id);
+      setUserProfile(profile);
+    }
+  }, [user, fetchUserProfile]);
 
   /* -------------- Auth flow -------------- */
   useEffect(() => {
     let mounted = true;
 
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
+        }
 
-      setSession(session);
-      setUser(session?.user ?? null);
-
-      if (session?.user) {
-        const prof = await fetchUserProfile(session.user.id);
-        if (mounted) setUserProfile(prof);
-      }
-      setLoading(false);
-    };
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_evt, session) => {
         if (!mounted) return;
+
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const prof = await fetchUserProfile(session.user.id);
-          if (mounted) setUserProfile(prof);
+          const profile = await fetchUserProfile(session.user.id);
+          if (mounted) setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    // Listener para cambios en el estado de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('Auth state changed:', event, session?.user?.email);
+        
+        if (!mounted) return;
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id);
+          if (mounted) setUserProfile(profile);
         } else {
           setUserProfile(null);
         }
-        setLoading(false);
+        
+        if (mounted) setLoading(false);
       }
     );
 
-    init();
+    initializeAuth();
+
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
+  }, [fetchUserProfile]);
+
+  /* -------------- Auth Methods -------------- */
+  const signIn = useCallback(async (email: string, password: string) => {
+    try {
+      const result = await supabase.auth.signInWithPassword({ email, password });
+      return { error: result.error };
+    } catch (error) {
+      console.error('Sign in error:', error);
+      return { error };
+    }
   }, []);
 
-  /* -------------- Mutations -------------- */
-  const signIn = async (email: string, password: string) =>
-    supabase.auth.signInWithPassword({ email, password });
+  const signUp = useCallback(async (email: string, password: string, name: string) => {
+    try {
+      const result = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name },
+          emailRedirectTo: `${window.location.origin}/`,
+        },
+      });
+      return { error: result.error };
+    } catch (error) {
+      console.error('Sign up error:', error);
+      return { error };
+    }
+  }, []);
 
-  const signUp = async (email: string, password: string, name: string) =>
-    supabase.auth.signUp({
-      email, password,
-      options: { data: { name }, emailRedirectTo: `${window.location.origin}/` },
-    });
+  const signOut = useCallback(async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
+      throw error;
+    }
+  }, []);
 
-  const signOut = async () => supabase.auth.signOut();
+  /* -------------- Permission Check -------------- */
+  const hasPermission = useCallback((permission: string): boolean => {
+    if (!userProfile || !userProfile.permissions) {
+      return false;
+    }
 
-  /* -------------- Permisos (fixture) -------------- */
-  const hasPermission = (perm: string) =>
-    (userProfile?.permissions ?? [])
-      .map((p) => p.toLowerCase())
-      .includes(perm.toLowerCase());
+    // Normalizar permisos para comparación case-insensitive
+    const userPermissions = userProfile.permissions.map(p => p.toLowerCase());
+    const requiredPermission = permission.toLowerCase();
 
-  /* -------------- Context value -------------- */
+    return userPermissions.includes(requiredPermission);
+  }, [userProfile]);
+
+  /* -------------- Context Value -------------- */
+  const contextValue: AuthContextType = {
+    user,
+    session,
+    userProfile,
+    loading,
+    signIn,
+    signUp,
+    signOut,
+    hasPermission,
+    refreshProfile,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        userProfile,
-        loading,
-        signIn,
-        signUp,
-        signOut,
-        hasPermission,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
-  return ctx;
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth debe usarse dentro de AuthProvider");
+  }
+  return context;
 }
