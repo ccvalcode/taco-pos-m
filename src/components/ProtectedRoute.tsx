@@ -10,35 +10,34 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) => {
-  const { user, userProfile, loading, isInitialized, hasPermission, signOut } = useAuth();
+  const { user, userProfile, loading, hasPermission, signOut } = useAuth();
   const location = useLocation();
 
-  console.log('🛡️ ProtectedRoute render:', { 
+  console.log('ProtectedRoute render:', { 
     loading, 
-    isInitialized,
     hasUser: !!user, 
     hasProfile: !!userProfile,
     requiredPermission,
     currentPath: location.pathname 
   });
 
-  // Mostrar loading mientras no esté inicializado o esté cargando
-  if (!isInitialized || loading) {
+  // Mostrar loading mientras se verifica la autenticación
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
         <Card className="p-8 text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <div className="text-xl font-semibold text-gray-600">
-            {!isInitialized ? 'Inicializando aplicación...' : 'Verificando autenticación...'}
+            Verificando autenticación...
           </div>
         </Card>
       </div>
     );
   }
 
-  // Solo redirigir si ya está inicializado y no hay usuario
-  if (isInitialized && !user) {
-    console.log('🚪 No hay usuario, redirigiendo a auth');
+  // Si no hay usuario después de cargar, redirigir a login
+  if (!loading && !user) {
+    console.log('No user found, redirecting to auth');
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
