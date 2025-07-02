@@ -1,6 +1,7 @@
 
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +159,17 @@ const Inventory = () => {
           </div>
         </div>
       </div>
+
+      {/* Botón + Dialog */}
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button className="bg-green-600 hover:bg-green-700 text-white mb-4">
+            <Plus className="w-4 h-4 mr-2" />
+            Nuevo producto
+          </Button>
+        </DialogTrigger>
+        <NewProductForm />
+      </Dialog>
 
       <div className="container mx-auto px-4 py-6">
         {/* Búsqueda */}
