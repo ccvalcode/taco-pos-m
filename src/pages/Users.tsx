@@ -46,12 +46,13 @@ interface UserRow {
 }
 
 const ALL_PERMISSIONS = [
-  "admin",
-  "can_create",
-  "can_edit",
-  "can_delete",
-  "view_reports",
-  "manage_users",
+  "pos_access",
+  "kitchen_access",
+  "sales_view",
+  "users_manage",
+  "cash_manage",
+  "inventory_manage",
+  "reports_view",
 ];
 
 const ITEMS_PER_PAGE = 10;
