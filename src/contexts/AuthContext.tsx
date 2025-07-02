@@ -19,6 +19,7 @@ interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  isInitialized: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   /* -------------- Helpers -------------- */
   const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
@@ -83,40 +85,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /* -------------- Auth flow -------------- */
   useEffect(() => {
     let mounted = true;
+    let profileTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
-        // Primero verificamos si hay una sesión activa
+        console.log('🔄 Inicializando autenticación...');
+        
+        // Verificar sesión existente
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
-          if (mounted) setLoading(false);
+          console.error('❌ Error getting session:', error);
+          if (mounted) {
+            setLoading(false);
+            setIsInitialized(true);
+          }
           return;
         }
 
         if (!mounted) return;
 
-        console.log('Initial session check:', session?.user?.email || 'No session');
+        console.log('📋 Sesión inicial:', session?.user?.email || 'Sin sesión');
         
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Cargar perfil del usuario
           const profile = await fetchUserProfile(session.user.id);
           if (mounted) {
             setUserProfile(profile);
-            console.log('Profile loaded for user:', profile?.name || 'Unknown');
+            console.log('👤 Perfil cargado:', profile?.name || 'Sin perfil');
           }
         } else {
           if (mounted) setUserProfile(null);
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('❌ Error inicializando auth:', error);
       } finally {
         if (mounted) {
           setLoading(false);
-          console.log('Auth initialization complete');
+          setIsInitialized(true);
+          console.log('✅ Inicialización de auth completada');
         }
       }
     };
@@ -124,29 +134,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listener para cambios en el estado de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email || 'No user');
+        console.log('🔔 Cambio de estado auth:', event, session?.user?.email || 'Sin usuario');
         
         if (!mounted) return;
-        
-        // Solo actualizamos el loading en eventos específicos
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-          setLoading(true);
-        }
         
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) {
-            setUserProfile(profile);
-            console.log('Profile updated via auth change:', profile?.name || 'Unknown');
-          }
+          // Dar un poco de tiempo para que el perfil se cargue
+          profileTimeout = setTimeout(async () => {
+            if (!mounted) return;
+            const profile = await fetchUserProfile(session.user.id);
+            if (mounted) {
+              setUserProfile(profile);
+              console.log('👤 Perfil actualizado:', profile?.name || 'Sin perfil');
+            }
+          }, 100);
         } else {
-          if (mounted) setUserProfile(null);
+          if (mounted) {
+            setUserProfile(null);
+            console.log('🚪 Usuario deslogueado');
+          }
         }
         
-        if (mounted) setLoading(false);
+        if (mounted && !isInitialized) {
+          setLoading(false);
+          setIsInitialized(true);
+        }
       }
     );
 
@@ -154,9 +169,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      if (profileTimeout) clearTimeout(profileTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, isInitialized]);
 
   /* -------------- Auth Methods -------------- */
   const signIn = useCallback(async (email: string, password: string) => {
@@ -218,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     userProfile,
     loading,
+    isInitialized,
     signIn,
     signUp,
     signOut,
