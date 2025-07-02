@@ -352,12 +352,12 @@ const UsersPage = () => {
                 <Checkbox
                   checked={editingPermissions.includes(perm)}
                   onCheckedChange={(val) =>
-                    setEditingPermissions((prev) =>
-                      val ? [...prev, perm] : prev.filter((p) => p !== perm)
-                    )
+                    val
+                      ? setEditingPermissions([...editingPermissions, perm])
+                      : setEditingPermissions(editingPermissions.filter((p) => p !== perm))
                   }
                 />
-                <span className="capitalize">{perm.replace("_", " ")}</span>
+                <span className="capitalize">{perm.replace(/_/g, " ")}</span>
               </label>
             ))}
           </div>
