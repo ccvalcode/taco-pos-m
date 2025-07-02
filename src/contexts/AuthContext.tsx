@@ -19,6 +19,7 @@ interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  isInitialized: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   /* -------------- Helpers -------------- */
   const fetchUserProfile = useCallback(async (userId: string): Promise<UserProfile | null> => {
@@ -83,36 +85,56 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /* -------------- Auth flow -------------- */
   useEffect(() => {
     let mounted = true;
+    let profileTimeout: NodeJS.Timeout;
 
     const initializeAuth = async () => {
       try {
+        console.log('🔄 Inicializando autenticación...');
+        
+        // Verificar sesión existente
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('Error getting session:', error);
+          console.error('❌ Error getting session:', error);
+          if (mounted) {
+            setLoading(false);
+            setIsInitialized(true);
+          }
           return;
         }
 
         if (!mounted) return;
 
+        console.log('📋 Sesión inicial:', session?.user?.email || 'Sin sesión');
+        
         setSession(session);
         setUser(session?.user ?? null);
 
         if (session?.user) {
+          // Cargar perfil del usuario
           const profile = await fetchUserProfile(session.user.id);
-          if (mounted) setUserProfile(profile);
+          if (mounted) {
+            setUserProfile(profile);
+            console.log('👤 Perfil cargado:', profile?.name || 'Sin perfil');
+          }
+        } else {
+          if (mounted) setUserProfile(null);
         }
       } catch (error) {
-        console.error('Error initializing auth:', error);
+        console.error('❌ Error inicializando auth:', error);
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+          setIsInitialized(true);
+          console.log('✅ Inicialización de auth completada');
+        }
       }
     };
 
     // Listener para cambios en el estado de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
+        console.log('🔔 Cambio de estado auth:', event, session?.user?.email || 'Sin usuario');
         
         if (!mounted) return;
         
@@ -120,13 +142,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
 
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) setUserProfile(profile);
+          // Dar un poco de tiempo para que el perfil se cargue
+          profileTimeout = setTimeout(async () => {
+            if (!mounted) return;
+            const profile = await fetchUserProfile(session.user.id);
+            if (mounted) {
+              setUserProfile(profile);
+              console.log('👤 Perfil actualizado:', profile?.name || 'Sin perfil');
+            }
+          }, 100);
         } else {
-          setUserProfile(null);
+          if (mounted) {
+            setUserProfile(null);
+            console.log('🚪 Usuario deslogueado');
+          }
         }
         
-        if (mounted) setLoading(false);
+        if (mounted && !isInitialized) {
+          setLoading(false);
+          setIsInitialized(true);
+        }
       }
     );
 
@@ -134,9 +169,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      if (profileTimeout) clearTimeout(profileTimeout);
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, [fetchUserProfile, isInitialized]);
 
   /* -------------- Auth Methods -------------- */
   const signIn = useCallback(async (email: string, password: string) => {
@@ -198,6 +234,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     userProfile,
     loading,
+    isInitialized,
     signIn,
     signUp,
     signOut,
