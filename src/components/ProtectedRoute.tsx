@@ -30,7 +30,7 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     return <Navigate to="/auth" replace />;
   }
 
-  if (!userProfile) {
+  if (!loading && !userProfile) {
     console.log('No user profile, redirecting to auth');
     return <Navigate to="/auth" replace />;
   }
