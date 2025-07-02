@@ -160,17 +160,6 @@ const Inventory = () => {
         </div>
       </div>
 
-      {/* Botón + Dialog */}
-      <Dialog>
-        <DialogTrigger asChild>
-          <Button className="bg-green-600 hover:bg-green-700 text-white mb-4">
-            <Plus className="w-4 h-4 mr-2" />
-            Nuevo producto
-          </Button>
-        </DialogTrigger>
-        <NewProductForm />
-      </Dialog>
-
       <div className="container mx-auto px-4 py-6">
         {/* Búsqueda */}
         <Card className="mb-6">
