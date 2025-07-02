@@ -1,4 +1,4 @@
-
+// AuthContext.tsx
 import { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,42 +36,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      console.log('Fetching user profile for:', userId);
-      
       const { data: profile, error } = await supabase
         .from('users')
         .select('*')
         .eq('auth_user_id', userId)
         .single();
-      
-      if (error) {
+
+      if (error || !profile) {
         console.error('Error fetching user profile:', error);
         return null;
       }
 
-      if (profile) {
-        // Fetch user permissions separately
-        const { data: permissions, error: permError } = await supabase
-          .from('user_permissions')
-          .select('permission')
-          .eq('user_id', profile.id);
+      const { data: permissions, error: permError } = await supabase
+        .from('user_permissions')
+        .select('permission')
+        .eq('user_id', profile.id);
 
-        if (permError) {
-          console.error('Error fetching permissions:', permError);
-        }
-
-        const profileWithPermissions = {
-          ...profile,
-          permissions: permissions?.map((p: any) => p.permission) || []
-        };
-
-        console.log('User profile loaded:', profileWithPermissions);
-        return profileWithPermissions;
+      if (permError) {
+        console.error('Error fetching permissions:', permError);
       }
-      
-      return null;
-    } catch (error) {
-      console.error('Exception fetching user profile:', error);
+
+      return {
+        ...profile,
+        permissions: permissions?.map((p: any) => p.permission) || [],
+      };
+    } catch (err) {
+      console.error('Exception fetching user profile:', err);
       return null;
     }
   };
@@ -79,16 +69,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // Configurar listener de autenticación
+    const initializeAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!mounted) return;
+
+      setSession(session);
+      setUser(session?.user ?? null);
+      setLoading(false); // Desactivamos loading inmediatamente
+
+      if (session?.user) {
+        const profile = await fetchUserProfile(session.user.id);
+        if (mounted) {
+          setUserProfile(profile);
+        }
+      }
+    };
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('Auth state change:', event, session?.user?.email);
-        
+      async (_event, session) => {
         if (!mounted) return;
 
         setSession(session);
         setUser(session?.user ?? null);
-        
+        setLoading(false); // Desactivamos loading inmediatamente
+
         if (session?.user) {
           const profile = await fetchUserProfile(session.user.id);
           if (mounted) {
@@ -99,42 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUserProfile(null);
           }
         }
-        
-        if (mounted) {
-          setLoading(false);
-        }
       }
     );
-
-    // Verificar sesión existente
-    const initializeAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-
-        console.log('Initial session check:', session?.user?.email || 'No session');
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) {
-            setUserProfile(profile);
-          }
-        }
-        
-        if (mounted) {
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    };
 
     initializeAuth();
 
@@ -145,10 +115,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     return { error };
   };
 
@@ -157,11 +124,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        data: {
-          name: name
-        },
-        emailRedirectTo: `${window.location.origin}/`
-      }
+        data: { name },
+        emailRedirectTo: `${window.location.origin}/`,
+      },
     });
     return { error };
   };
@@ -170,23 +135,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut();
   };
 
-  const hasPermission = (permission: string) => {
-    return userProfile?.permissions?.includes(permission) || false;
-  };
-
-  const value = {
-    user,
-    session,
-    userProfile,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    hasPermission
-  };
+  const hasPermission = (permission: string) =>
+    userProfile?.permissions?.includes(permission) || false;
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, session, userProfile, loading, signIn, signUp, signOut, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );
@@ -194,8 +147,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }
