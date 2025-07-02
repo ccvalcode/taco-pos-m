@@ -4,9 +4,8 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { User, Session } from "@supabase/supabase-js";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -14,38 +13,18 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
   
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signIn, signUp } = useAuth();
 
   useEffect(() => {
-    // Configurar listener de autenticación
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        console.log('Auth event:', event, session?.user?.email);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          navigate('/');
-        }
-      }
-    );
-
-    // Verificar sesión existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        navigate('/');
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
+    // Si el usuario ya está autenticado, redirigir
+    if (user) {
+      console.log('User already authenticated, redirecting...');
+      navigate('/', { replace: true });
+    }
+  }, [user, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,34 +33,22 @@ const Auth = () => {
     try {
       if (isLogin) {
         console.log('Attempting login with:', email);
-        const { error, data } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+        const { error } = await signIn(email, password);
         
         if (error) {
           console.error('Login error:', error);
           throw error;
         }
         
-        console.log('Login successful:', data);
+        console.log('Login successful');
         toast({
           title: "¡Bienvenido!",
           description: "Has iniciado sesión correctamente."
         });
-      } else {
-        const redirectUrl = `${window.location.origin}/`;
         
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl,
-            data: {
-              name: name
-            }
-          }
-        });
+        // No necesitamos redirigir manualmente, useEffect se encargará
+      } else {
+        const { error } = await signUp(email, password, name);
         
         if (error) throw error;
         
@@ -112,6 +79,7 @@ const Auth = () => {
     }
   };
 
+  // Si el usuario ya está autenticado, mostrar mensaje de redirección
   if (user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-50 flex items-center justify-center">

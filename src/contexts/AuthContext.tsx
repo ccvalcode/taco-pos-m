@@ -34,78 +34,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUserProfile = async (userId: string) => {
+    try {
+      console.log('Fetching user profile for:', userId);
+      
+      const { data: profile, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('auth_user_id', userId)
+        .single();
+      
+      if (error) {
+        console.error('Error fetching user profile:', error);
+        return null;
+      }
+
+      if (profile) {
+        // Fetch user permissions separately
+        const { data: permissions, error: permError } = await supabase
+          .from('user_permissions')
+          .select('permission')
+          .eq('user_id', profile.id);
+
+        if (permError) {
+          console.error('Error fetching permissions:', permError);
+        }
+
+        const profileWithPermissions = {
+          ...profile,
+          permissions: permissions?.map((p: any) => p.permission) || []
+        };
+
+        console.log('User profile loaded:', profileWithPermissions);
+        return profileWithPermissions;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Exception fetching user profile:', error);
+      return null;
+    }
+  };
+
   useEffect(() => {
+    let mounted = true;
+
     // Configurar listener de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('Auth state change:', event, session?.user?.email);
+        
+        if (!mounted) return;
+
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Obtener perfil del usuario con permisos
-          const { data: profile, error } = await supabase
-            .from('users')
-            .select(`
-              *,
-              user_permissions (permission)
-            `)
-            .eq('auth_user_id', session.user.id)
-            .single();
-          
-          if (profile && !error) {
-            const profileWithPermissions = {
-              ...profile,
-              permissions: profile.user_permissions?.map((up: any) => up.permission) || []
-            };
-            setUserProfile(profileWithPermissions);
-            console.log('User profile loaded:', profileWithPermissions);
-          } else {
-            console.error('Error loading user profile:', error);
-            setUserProfile(null);
+          const profile = await fetchUserProfile(session.user.id);
+          if (mounted) {
+            setUserProfile(profile);
           }
         } else {
-          setUserProfile(null);
+          if (mounted) {
+            setUserProfile(null);
+          }
         }
         
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     );
 
     // Verificar sesión existente
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        console.log('Existing session found:', session.user.email);
-      }
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        // Obtener perfil del usuario con permisos
-        supabase
-          .from('users')
-          .select(`
-            *,
-            user_permissions (permission)
-          `)
-          .eq('auth_user_id', session.user.id)
-          .single()
-          .then(({ data: profile, error }) => {
-            if (profile && !error) {
-              const profileWithPermissions = {
-                ...profile,
-                permissions: profile.user_permissions?.map((up: any) => up.permission) || []
-              };
-              setUserProfile(profileWithPermissions);
-            }
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
-      }
-    });
+    const initializeAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!mounted) return;
 
-    return () => subscription.unsubscribe();
+        console.log('Initial session check:', session?.user?.email || 'No session');
+        
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          const profile = await fetchUserProfile(session.user.id);
+          if (mounted) {
+            setUserProfile(profile);
+          }
+        }
+        
+        if (mounted) {
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {

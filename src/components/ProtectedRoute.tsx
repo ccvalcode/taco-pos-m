@@ -11,6 +11,8 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) => {
   const { user, userProfile, loading, hasPermission } = useAuth();
 
+  console.log('ProtectedRoute - loading:', loading, 'user:', !!user, 'userProfile:', !!userProfile);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
@@ -23,7 +25,13 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     );
   }
 
-  if (!user || !userProfile) {
+  if (!user) {
+    console.log('No user, redirecting to auth');
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!userProfile) {
+    console.log('No user profile, redirecting to auth');
     return <Navigate to="/auth" replace />;
   }
 
