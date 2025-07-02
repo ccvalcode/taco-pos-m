@@ -1,4 +1,4 @@
-
+// ProtectedRoute.tsx
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { Card } from "@/components/ui/card";
@@ -10,8 +10,6 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) => {
   const { user, userProfile, loading, hasPermission } = useAuth();
-
-  console.log('ProtectedRoute - loading:', loading, 'user:', !!user, 'userProfile:', !!userProfile);
 
   if (loading) {
     return (
@@ -26,12 +24,6 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
   }
 
   if (!user) {
-    console.log('No user, redirecting to auth');
-    return <Navigate to="/auth" replace />;
-  }
-
-  if (!loading && !userProfile) {
-    console.log('No user profile, redirecting to auth');
     return <Navigate to="/auth" replace />;
   }
 
@@ -46,9 +38,11 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
           <p className="text-gray-600 mb-4">
             No tienes permisos para acceder a esta sección.
           </p>
-          <p className="text-sm text-gray-500">
-            Tu rol actual: <span className="font-semibold">{userProfile.role}</span>
-          </p>
+          {userProfile && (
+            <p className="text-sm text-gray-500">
+              Tu rol actual: <span className="font-semibold">{userProfile.role}</span>
+            </p>
+          )}
         </Card>
       </div>
     );
