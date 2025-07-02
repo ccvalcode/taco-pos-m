@@ -24,6 +24,7 @@ const Auth = () => {
     // Configurar listener de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth event:', event, session?.user?.email);
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -52,13 +53,18 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
+        console.log('Attempting login with:', email);
+        const { error, data } = await supabase.auth.signInWithPassword({
           email,
           password
         });
         
-        if (error) throw error;
+        if (error) {
+          console.error('Login error:', error);
+          throw error;
+        }
         
+        console.log('Login successful:', data);
         toast({
           title: "¡Bienvenido!",
           description: "Has iniciado sesión correctamente."
@@ -85,9 +91,20 @@ const Auth = () => {
         });
       }
     } catch (error: any) {
+      console.error('Auth error:', error);
+      let errorMessage = "Ocurrió un error durante la autenticación.";
+      
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = "Credenciales incorrectas. Verifica tu email y contraseña.";
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = "Confirma tu email antes de iniciar sesión.";
+      } else if (error.message.includes('User already registered')) {
+        errorMessage = "El usuario ya está registrado. Intenta iniciar sesión.";
+      }
+      
       toast({
         title: "Error",
-        description: error.message || "Ocurrió un error durante la autenticación.",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -179,8 +196,18 @@ const Auth = () => {
           {/* Credenciales de prueba */}
           <div className="mt-6 p-4 bg-gray-50 rounded-lg">
             <p className="text-sm font-medium text-gray-700 mb-2">Credenciales de prueba:</p>
-            <p className="text-xs text-gray-600">Email: admin@taqueria.com</p>
-            <p className="text-xs text-gray-600">Contraseña: admin123</p>
+            <div className="space-y-2">
+              <div>
+                <p className="text-xs text-gray-600 font-semibold">Super Admin:</p>
+                <p className="text-xs text-gray-600">Email: superadmin@taqueria.com</p>
+                <p className="text-xs text-gray-600">Contraseña: admin123</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-600 font-semibold">Admin:</p>
+                <p className="text-xs text-gray-600">Email: admin@taqueria.com</p>
+                <p className="text-xs text-gray-600">Contraseña: admin123</p>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
