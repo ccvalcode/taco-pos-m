@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,18 +6,31 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users as UsersIcon, UserPlus, Edit, Trash2, Clock, DollarSign } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Users as UsersIcon, UserPlus, Edit, Trash2, Clock, DollarSign, Shield } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
+
+const AVAILABLE_PERMISSIONS = [
+  { id: 'pos_access', label: 'Acceso al POS', description: 'Permite usar el sistema de punto de venta' },
+  { id: 'kitchen_access', label: 'Acceso a Cocina', description: 'Permite ver y gestionar órdenes de cocina' },
+  { id: 'sales_view', label: 'Ver Ventas', description: 'Permite ver reportes de ventas' },
+  { id: 'users_manage', label: 'Gestionar Usuarios', description: 'Permite crear y editar usuarios' },
+  { id: 'cash_manage', label: 'Gestionar Caja', description: 'Permite hacer cortes de caja' },
+  { id: 'reports_view', label: 'Ver Reportes', description: 'Permite acceder a todos los reportes' },
+  { id: 'inventory_manage', label: 'Gestionar Inventario', description: 'Permite gestionar productos e inventario' }
+];
 
 const Users = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
   const [isShiftDialogOpen, setIsShiftDialogOpen] = useState(false);
+  const [isPermissionsDialogOpen, setIsPermissionsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
+  const [selectedUserForPermissions, setSelectedUserForPermissions] = useState<any>(null);
   const [userForm, setUserForm] = useState({
     name: '',
     email: '',
@@ -29,18 +41,24 @@ const Users = () => {
     initialCash: 0
   });
 
-  // Obtener usuarios
+  // Obtener usuarios con permisos
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          user_permissions (permission)
+        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data;
+      return data?.map(user => ({
+        ...user,
+        permissions: user.user_permissions?.map((up: any) => up.permission) || []
+      }));
     }
   });
 
@@ -72,10 +90,9 @@ const Users = () => {
           .eq('id', editingUser.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
-          .from('users')
-          .insert(userData);
-        if (error) throw error;
+        // Para crear usuarios nuevos, necesitaríamos usar Supabase Auth
+        // Por ahora solo permitimos editar usuarios existentes
+        throw new Error('La creación de usuarios debe hacerse a través del registro de autenticación');
       }
     },
     onSuccess: () => {
@@ -84,14 +101,55 @@ const Users = () => {
       setEditingUser(null);
       setUserForm({ name: '', email: '', role: 'cajero' });
       toast({
-        title: "Usuario guardado",
-        description: "El usuario ha sido guardado correctamente."
+        title: "Usuario actualizado",
+        description: "El usuario ha sido actualizado correctamente."
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "No se pudo guardar el usuario.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Actualizar permisos de usuario
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async ({ userId, permissions }: { userId: string, permissions: string[] }) => {
+      // Eliminar permisos existentes
+      await supabase
+        .from('user_permissions')
+        .delete()
+        .eq('user_id', userId);
+
+      // Agregar nuevos permisos
+      if (permissions.length > 0) {
+        const permissionsData = permissions.map(permission => ({
+          user_id: userId,
+          permission: permission
+        }));
+
+        const { error } = await supabase
+          .from('user_permissions')
+          .insert(permissionsData);
+        
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsPermissionsDialogOpen(false);
+      setSelectedUserForPermissions(null);
+      toast({
+        title: "Permisos actualizados",
+        description: "Los permisos del usuario han sido actualizados correctamente."
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "No se pudo guardar el usuario.",
+        description: "No se pudieron actualizar los permisos.",
         variant: "destructive"
       });
     }
@@ -151,6 +209,8 @@ const Users = () => {
 
   const getRoleColor = (role: string) => {
     switch (role) {
+      case 'super_admin':
+        return 'bg-red-600';
       case 'admin':
         return 'bg-red-500';
       case 'supervisor':
@@ -171,11 +231,6 @@ const Users = () => {
     createUserMutation.mutate(userForm);
   };
 
-  const handleShiftSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    startShiftMutation.mutate(shiftForm);
-  };
-
   const openEditUser = (user: any) => {
     setEditingUser(user);
     setUserForm({
@@ -184,6 +239,24 @@ const Users = () => {
       role: user.role
     });
     setIsUserDialogOpen(true);
+  };
+
+  const openPermissionsDialog = (user: any) => {
+    setSelectedUserForPermissions(user);
+    setIsPermissionsDialogOpen(true);
+  };
+
+  const handlePermissionsSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const formData = new FormData(e.target as HTMLFormElement);
+    const selectedPermissions = AVAILABLE_PERMISSIONS
+      .filter(permission => formData.get(permission.id))
+      .map(permission => permission.id);
+    
+    updatePermissionsMutation.mutate({
+      userId: selectedUserForPermissions.id,
+      permissions: selectedPermissions
+    });
   };
 
   return (
@@ -302,60 +375,6 @@ const Users = () => {
               <UsersIcon className="w-5 h-5" />
               Usuarios del Sistema
             </CardTitle>
-            <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Nuevo Usuario
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
-                  </DialogTitle>
-                </DialogHeader>
-                <form onSubmit={handleUserSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Nombre</label>
-                    <Input
-                      value={userForm.name}
-                      onChange={(e) => setUserForm({...userForm, name: e.target.value})}
-                      placeholder="Nombre completo"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Email</label>
-                    <Input
-                      type="email"
-                      value={userForm.email}
-                      onChange={(e) => setUserForm({...userForm, email: e.target.value})}
-                      placeholder="usuario@ejemplo.com"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Rol</label>
-                    <Select value={userForm.role} onValueChange={(value) => setUserForm({...userForm, role: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="supervisor">Supervisor</SelectItem>
-                        <SelectItem value="cajero">Cajero</SelectItem>
-                        <SelectItem value="mesero">Mesero</SelectItem>
-                        <SelectItem value="cocina">Cocina</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={createUserMutation.isPending}>
-                    {editingUser ? 'Actualizar' : 'Crear'} Usuario
-                  </Button>
-                </form>
-              </DialogContent>
-            </Dialog>
           </CardHeader>
           <CardContent>
             {usersLoading ? (
@@ -371,8 +390,8 @@ const Users = () => {
                     <TableHead>Nombre</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Rol</TableHead>
+                    <TableHead>Permisos</TableHead>
                     <TableHead>Estado</TableHead>
-                    <TableHead>Fecha Creación</TableHead>
                     <TableHead>Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -383,16 +402,27 @@ const Users = () => {
                       <TableCell>{user.email}</TableCell>
                       <TableCell>
                         <Badge className={`${getRoleColor(user.role)} text-white`}>
-                          {user.role}
+                          {user.role.replace('_', ' ').toUpperCase()}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {user.permissions?.slice(0, 2).map((permission: string) => (
+                            <Badge key={permission} variant="outline" className="text-xs">
+                              {AVAILABLE_PERMISSIONS.find(p => p.id === permission)?.label}
+                            </Badge>
+                          ))}
+                          {user.permissions?.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                              +{user.permissions.length - 2} más
+                            </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge className={user.is_active ? 'bg-green-500' : 'bg-red-500'}>
                           {user.is_active ? 'Activo' : 'Inactivo'}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {new Date(user.created_at).toLocaleDateString()}
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
@@ -402,6 +432,13 @@ const Users = () => {
                             onClick={() => openEditUser(user)}
                           >
                             <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => openPermissionsDialog(user)}
+                          >
+                            <Shield className="w-4 h-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -413,6 +450,96 @@ const Users = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog para editar usuario */}
+      <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleUserSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Nombre</label>
+              <Input
+                value={userForm.name}
+                onChange={(e) => setUserForm({...userForm, name: e.target.value})}
+                placeholder="Nombre completo"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Email</label>
+              <Input
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm({...userForm, email: e.target.value})}
+                placeholder="usuario@ejemplo.com"
+                required
+                disabled={!!editingUser}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Rol</label>
+              <Select value={userForm.role} onValueChange={(value) => setUserForm({...userForm, role: value})}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="super_admin">Super Administrador</SelectItem>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="supervisor">Supervisor</SelectItem>
+                  <SelectItem value="cajero">Cajero</SelectItem>
+                  <SelectItem value="mesero">Mesero</SelectItem>
+                  <SelectItem value="cocina">Cocina</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button type="submit" className="w-full" disabled={createUserMutation.isPending}>
+              {editingUser ? 'Actualizar' : 'Crear'} Usuario
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para gestionar permisos */}
+      <Dialog open={isPermissionsDialogOpen} onOpenChange={setIsPermissionsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>
+              Gestionar Permisos - {selectedUserForPermissions?.name}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handlePermissionsSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
+              {AVAILABLE_PERMISSIONS.map((permission) => (
+                <div key={permission.id} className="flex items-start space-x-3 p-3 border rounded-lg">
+                  <Checkbox
+                    id={permission.id}
+                    name={permission.id}
+                    defaultChecked={selectedUserForPermissions?.permissions?.includes(permission.id)}
+                  />
+                  <div className="grid gap-1.5 leading-none">
+                    <label
+                      htmlFor={permission.id}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      {permission.label}
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                      {permission.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <Button type="submit" className="w-full" disabled={updatePermissionsMutation.isPending}>
+              Actualizar Permisos
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
