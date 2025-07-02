@@ -25,9 +25,7 @@ const MAX_IMG_SIZE = 2 * 1024 * 1024; // 2 MB
 const Inventory = () => {
   /* ----------- Auth ---------- */
   const { userProfile, hasPermission } = useAuth();
-  const canAddProduct =
-    ["super_admin", "admin"].includes((userProfile?.role ?? "").toLowerCase()) ||
-    hasPermission("inventory_manage");
+  const canAddProduct = hasPermission("inventory_manage");
 
   /* ----------- Hooks ---------- */
   const { toast } = useToast();
