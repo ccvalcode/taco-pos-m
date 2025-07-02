@@ -31,6 +31,17 @@ interface UserRow {
   permissions: string[];
 }
 
+/* --------------------------------------------------------------------------
+⚠️  NOTA SOBRE LA RELACIÓN users ↔ user_permissions
+───────────────────────────────────────────────────
+Supabase arrojó el error:
+  "Could not embed because more than one relationship was found for 'users' and 'user_permissions'"
+Eso significa que la tabla `user_permissions` tiene MÁS DE UNA clave foránea
+que apunta a `users` (ej.: `user_id` y `manager_id`).
+Para evitar ambigüedad, hacemos DOS consultas: primero users y luego todas las
+filas de user_permissions, combinándolas en memoria.
+--------------------------------------------------------------------------- */
+
 const UsersPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -38,7 +49,7 @@ const UsersPage = () => {
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
 
   /** ------------------------------------------------------------------
-   * USERS QUERY — trae TODOS los usuarios, activos e inactivos
+   * QUERY: usuarios (sin JOIN ambiguo)
    * ------------------------------------------------------------------ */
   const {
     data: users,
@@ -47,20 +58,36 @@ const UsersPage = () => {
   } = useQuery<UserRow[]>({
     queryKey: ["users"],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1️⃣  Trae todas las filas de users
+      const { data: usersData, error: usersErr } = await supabase
         .from("users")
-        .select(
-          `*,
-          user_permissions (permission)`
-        )
-        .order("created_at", { ascending: false }); // 🔹 sin filtro is_active
+        .select("id, email, name, role, is_active")
+        .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (usersErr) throw usersErr;
+
+      // 2️⃣  Trae permisos por separado para TODOS los usuarios devueltos
+      const ids = usersData?.map((u) => u.id) || [];
+      let permissionsMap: Record<string, string[]> = {};
+
+      if (ids.length > 0) {
+        const { data: permsData, error: permsErr } = await supabase
+          .from("user_permissions")
+          .select("user_id, permission")
+          .in("user_id", ids);
+
+        if (permsErr) throw permsErr;
+
+        permsData?.forEach((p: any) => {
+          permissionsMap[p.user_id] = permissionsMap[p.user_id] || [];
+          permissionsMap[p.user_id].push(p.permission);
+        });
+      }
 
       return (
-        data?.map((u: any) => ({
+        usersData?.map((u: any) => ({
           ...u,
-          permissions: u.user_permissions?.map((p: any) => p.permission) ?? [],
+          permissions: permissionsMap[u.id] || [],
         })) || []
       );
     },
@@ -98,8 +125,8 @@ const UsersPage = () => {
 
     return users.filter((u) => {
       if (
-        filter === "active" && !u.is_active ||
-        filter === "inactive" && u.is_active
+        (filter === "active" && !u.is_active) ||
+        (filter === "inactive" && u.is_active)
       )
         return false;
 
