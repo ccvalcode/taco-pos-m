@@ -13,6 +13,14 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
   const { user, userProfile, loading, hasPermission, signOut } = useAuth();
   const location = useLocation();
 
+  console.log('ProtectedRoute render:', { 
+    loading, 
+    hasUser: !!user, 
+    hasProfile: !!userProfile,
+    requiredPermission,
+    currentPath: location.pathname 
+  });
+
   // Mostrar loading mientras se verifica la autenticación
   if (loading) {
     return (
@@ -27,39 +35,21 @@ const ProtectedRoute = ({ children, requiredPermission }: ProtectedRouteProps) =
     );
   }
 
-  // Si no hay usuario, redirigir a login guardando la ubicación actual
-  if (!user) {
+  // Si no hay usuario después de cargar, redirigir a login
+  if (!loading && !user) {
+    console.log('No user found, redirecting to auth');
     return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
-  // Si se requiere un perfil de usuario pero no está disponible
-  if (user && !userProfile) {
+  // Si se requiere un perfil de usuario pero no está disponible YET
+  // Damos un poco más de tiempo para que se cargue el perfil
+  if (user && !userProfile && !loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-orange-50 flex items-center justify-center">
-        <Card className="p-8 text-center max-w-md">
-          <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-yellow-600 mb-4">
-            Perfil Incompleto
-          </h2>
-          <p className="text-gray-600 mb-6">
-            Tu perfil de usuario no se pudo cargar correctamente. 
-            Por favor, contacta al administrador o intenta cerrar sesión y volver a iniciar.
-          </p>
-          <div className="space-y-2">
-            <Button 
-              onClick={() => window.location.reload()} 
-              className="w-full"
-              variant="outline"
-            >
-              Reintentar
-            </Button>
-            <Button 
-              onClick={() => signOut()} 
-              className="w-full"
-              variant="destructive"
-            >
-              Cerrar Sesión
-            </Button>
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+        <Card className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="text-xl font-semibold text-gray-600">
+            Cargando perfil de usuario...
           </div>
         </Card>
       </div>
