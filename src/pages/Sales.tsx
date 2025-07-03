@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
 
 const Sales = () => {
   const [dateFrom, setDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -319,6 +320,8 @@ const Sales = () => {
           </CardContent>
         </Card>
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };

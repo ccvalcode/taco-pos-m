@@ -10,6 +10,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
 
 const CashCut = () => {
   const { toast } = useToast();
@@ -380,6 +381,8 @@ const CashCut = () => {
           </Card>
         </div>
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };

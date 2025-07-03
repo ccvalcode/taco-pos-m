@@ -1,9 +1,7 @@
 import { useState, useCallback } from "react";
-import {
-  Card, CardHeader, CardTitle, CardContent,
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
-} from "@/components/ui";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +16,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 
 const MAX_IMG_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -157,25 +158,44 @@ const Inventory = () => {
               </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader><DialogTitle>Agregar producto</DialogTitle></DialogHeader>
-                <div className="space-y-3" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-                  <Input placeholder="Nombre" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
-                  <Input placeholder="SKU" value={newProduct.sku} onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })} />
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input type="number" placeholder="Precio" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: +e.target.value })} />
-                    <Input type="number" placeholder="Costo" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: +e.target.value })} />
+                <div className="space-y-4" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
+                  <div>
+                    <Label htmlFor="name">Nombre del Producto *</Label>
+                    <Input id="name" placeholder="Ej: Taco de Pastor" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="sku">SKU (Código)</Label>
+                    <Input id="sku" placeholder="Ej: TAC-001" value={newProduct.sku} onChange={(e) => setNewProduct({ ...newProduct, sku: e.target.value })} />
                   </div>
 
-                  <Input type="number" placeholder="Stock inicial" value={newProduct.stock_quantity} onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: +e.target.value })} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="price">Precio de Venta * ($)</Label>
+                      <Input id="price" type="number" step="0.01" placeholder="0.00" value={newProduct.price} onChange={(e) => setNewProduct({ ...newProduct, price: +e.target.value })} />
+                    </div>
+                    <div>
+                      <Label htmlFor="cost">Costo ($)</Label>
+                      <Input id="cost" type="number" step="0.01" placeholder="0.00" value={newProduct.cost} onChange={(e) => setNewProduct({ ...newProduct, cost: +e.target.value })} />
+                    </div>
+                  </div>
 
-                  <Select value={newProduct.category_id} onValueChange={(v) => setNewProduct({ ...newProduct, category_id: v })}>
-                    <SelectTrigger><SelectValue placeholder="Categoría" /></SelectTrigger>
-                    <SelectContent>
-                      {categories.map((c: any) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div>
+                    <Label htmlFor="stock">Stock Inicial</Label>
+                    <Input id="stock" type="number" placeholder="0" value={newProduct.stock_quantity} onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: +e.target.value })} />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="category">Categoría *</Label>
+                    <Select value={newProduct.category_id} onValueChange={(v) => setNewProduct({ ...newProduct, category_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Selecciona una categoría" /></SelectTrigger>
+                      <SelectContent>
+                        {categories.map((c: any) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
 
                   {/* Área imagen */}
                   <div className="border-2 border-dashed rounded p-4 text-center cursor-pointer" onClick={() => document.getElementById("fileInput")?.click()}>
@@ -250,6 +270,8 @@ const Inventory = () => {
           </CardContent>
         </Card>
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };

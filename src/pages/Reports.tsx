@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
 
 const Reports = () => {
   const [dateFrom, setDateFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -349,6 +350,8 @@ const Reports = () => {
           </Card>
         )}
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
 import { ShoppingCart, ChefHat, BarChart3, Users, Calculator } from "lucide-react";
 
 const Index = () => {
@@ -120,6 +121,8 @@ const Index = () => {
           </div>
         )}
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };

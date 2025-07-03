@@ -84,64 +84,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        // Primero verificamos si hay una sesión activa
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          if (mounted) setLoading(false);
-          return;
-        }
-
-        if (!mounted) return;
-
-        console.log('Initial session check:', session?.user?.email || 'No session');
-        
-        setSession(session);
-        setUser(session?.user ?? null);
-
-        if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) {
-            setUserProfile(profile);
-            console.log('Profile loaded for user:', profile?.name || 'Unknown');
-          }
-        } else {
-          if (mounted) setUserProfile(null);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        if (mounted) {
-          setLoading(false);
-          console.log('Auth initialization complete');
-        }
-      }
-    };
-
     // Listener para cambios en el estado de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         console.log('Auth state changed:', event, session?.user?.email || 'No user');
         
         if (!mounted) return;
         
-        // Solo actualizamos el loading en eventos específicos
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
-          setLoading(true);
-        }
-        
         setSession(session);
         setUser(session?.user ?? null);
 
+        // Usar setTimeout para evitar deadlocks con async operations
         if (session?.user) {
-          const profile = await fetchUserProfile(session.user.id);
-          if (mounted) {
-            setUserProfile(profile);
-            console.log('Profile updated via auth change:', profile?.name || 'Unknown');
-          }
+          setTimeout(() => {
+            fetchUserProfile(session.user.id).then(profile => {
+              if (mounted) {
+                setUserProfile(profile);
+                console.log('Profile loaded for user:', profile?.name || 'Unknown');
+              }
+            });
+          }, 0);
         } else {
           if (mounted) setUserProfile(null);
         }
@@ -150,13 +112,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    initializeAuth();
+    // Verificar sesión inicial
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        if (mounted) setLoading(false);
+        return;
+      }
+
+      if (!mounted) return;
+
+      console.log('Initial session check:', session?.user?.email || 'No session');
+      
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        fetchUserProfile(session.user.id).then(profile => {
+          if (mounted) {
+            setUserProfile(profile);
+            console.log('Profile loaded for user:', profile?.name || 'Unknown');
+          }
+        });
+      } else {
+        if (mounted) setUserProfile(null);
+      }
+
+      if (mounted) setLoading(false);
+    });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [fetchUserProfile]);
+  }, []);
 
   /* -------------- Auth Methods -------------- */
   const signIn = useCallback(async (email: string, password: string) => {

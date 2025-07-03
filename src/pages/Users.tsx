@@ -131,7 +131,7 @@ const UsersPage = () => {
       if (permissions.length) {
         await supabase
           .from("user_permissions")
-          .insert(permissions.map((p) => ({ user_id: userId, permission: p })));
+          .insert(permissions.map((p) => ({ user_id: userId, permission: p as any })));
       }
     },
     onSuccess: () => {
@@ -153,11 +153,10 @@ const UsersPage = () => {
       const id = data.user?.id;
       if (id)
         await supabase.from("users").insert({
-          id,
           auth_user_id: id,
           email,
           name,
-          role,
+          role: role as any,
           is_active: true,
         });
     },

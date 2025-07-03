@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import Navigation from "@/components/Navigation";
+import FloatingNavigation from "@/components/FloatingNavigation";
 
 const POS = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -387,6 +388,8 @@ const POS = () => {
           </div>
         </div>
       </div>
+      
+      <FloatingNavigation />
     </div>
   );
 };
