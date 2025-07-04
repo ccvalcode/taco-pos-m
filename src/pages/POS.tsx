@@ -19,6 +19,7 @@ const POS = () => {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [orderType, setOrderType] = useState<"mesa" | "para_llevar">("mesa");
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  const [lastOrderNumber, setLastOrderNumber] = useState<string>('');
   
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -139,6 +140,9 @@ const POS = () => {
         title: "¡Orden procesada exitosamente!",
         description: `Orden ${order.order_number} enviada a cocina.`,
       });
+      
+      // Guardar número de orden para impresión
+      setLastOrderNumber(order.order_number);
       
       // Limpiar carrito
       setCartItems([]);
@@ -381,6 +385,7 @@ const POS = () => {
                     tableNumber={selectedTable}
                     onProcessOrder={handleProcessOrder}
                     isProcessing={processOrder.isPending}
+                    lastOrderNumber={lastOrderNumber}
                   />
                 </Card>
               )}

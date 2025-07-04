@@ -1,12 +1,14 @@
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { CreditCard, DollarSign, Smartphone, Receipt, Loader2 } from "lucide-react";
+import { CreditCard, DollarSign, Smartphone, Receipt, Loader2, Printer } from "lucide-react";
+import { useReactToPrint } from "react-to-print";
+import PrintTicket from "./PrintTicket";
 
 interface OrderSummaryProps {
   items: any[];
@@ -15,6 +17,7 @@ interface OrderSummaryProps {
   tableNumber?: number | null;
   onProcessOrder: (paymentMethod: string) => void;
   isProcessing?: boolean;
+  lastOrderNumber?: string;
 }
 
 const OrderSummary = ({ 
@@ -23,9 +26,11 @@ const OrderSummary = ({
   orderType, 
   tableNumber, 
   onProcessOrder,
-  isProcessing = false 
+  isProcessing = false,
+  lastOrderNumber
 }: OrderSummaryProps) => {
   const [paymentMethod, setPaymentMethod] = useState<"efectivo" | "tarjeta" | "transferencia">("efectivo");
+  const printRef = useRef<HTMLDivElement>(null);
   
   const tax = total * 0.16; // IVA 16%
   const finalTotal = total + tax;
@@ -40,6 +45,35 @@ const OrderSummary = ({
   const handleProcessOrder = () => {
     onProcessOrder(paymentMethod);
   };
+
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    documentTitle: `Ticket-${lastOrderNumber || 'orden'}`,
+    pageStyle: `
+      @page { 
+        size: 80mm auto; 
+        margin: 0; 
+      }
+      @media print {
+        body { 
+          margin: 0;
+          font-size: 12px;
+        }
+      }
+    `
+  });
+
+  const ticketData = lastOrderNumber ? {
+    orderNumber: lastOrderNumber,
+    items: items,
+    total: finalTotal,
+    tax: tax,
+    subtotal: total,
+    paymentMethod: paymentMethod,
+    orderType: orderType,
+    tableNumber: tableNumber,
+    date: new Date().toLocaleString()
+  } : null;
 
   return (
     <div className="space-y-4">
@@ -132,8 +166,14 @@ const OrderSummary = ({
           <Button variant="outline" className="text-sm" disabled={isProcessing}>
             Guardar Borrador
           </Button>
-          <Button variant="outline" className="text-sm" disabled={isProcessing}>
-            Imprimir Pre-cuenta
+          <Button 
+            variant="outline" 
+            className="text-sm" 
+            disabled={!lastOrderNumber}
+            onClick={handlePrint}
+          >
+            <Printer className="w-3 h-3 mr-1" />
+            Imprimir Ticket
           </Button>
         </div>
       </div>
@@ -146,6 +186,11 @@ const OrderSummary = ({
           </p>
         </div>
       )}
+
+      {/* Componente de impresión oculto */}
+      <div className="hidden">
+        {ticketData && <PrintTicket ref={printRef} orderData={ticketData} />}
+      </div>
     </div>
   );
 };

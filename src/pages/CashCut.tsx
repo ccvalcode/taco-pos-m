@@ -5,18 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Calculator, DollarSign, CreditCard, Smartphone, FileText, AlertTriangle } from "lucide-react";
+import { Calculator, DollarSign, CreditCard, Smartphone, FileText, AlertTriangle, Eye } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import Navigation from "@/components/Navigation";
 import FloatingNavigation from "@/components/FloatingNavigation";
+import CashCutPreview from "@/components/cash/CashCutPreview";
 
 const CashCut = () => {
   const { toast } = useToast();
   const [cutType, setCutType] = useState<'corte_x' | 'corte_z'>('corte_x');
   const [cashCounted, setCashCounted] = useState<string>('');
   const [selectedShift, setSelectedShift] = useState<string>('');
+  const [showPreview, setShowPreview] = useState(false);
 
   // Obtener turnos activos
   const { data: activeShifts } = useQuery({
@@ -131,6 +133,7 @@ const CashCut = () => {
       });
       setCashCounted('');
       setSelectedShift('');
+      setShowPreview(false);
     },
     onError: () => {
       toast({
@@ -147,6 +150,19 @@ const CashCut = () => {
     : 0;
   const cashCountedValue = parseFloat(cashCounted) || 0;
   const difference = cashCountedValue - expectedCash;
+
+  const handlePreviewCut = () => {
+    setShowPreview(true);
+  };
+
+  const cutPreviewData = selectedShiftData && salesSummary && cashCounted ? {
+    type: cutType,
+    shiftData: selectedShiftData,
+    salesSummary: salesSummary,
+    cashCounted: cashCountedValue,
+    expectedCash: expectedCash,
+    difference: difference
+  } : undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
@@ -269,16 +285,29 @@ const CashCut = () => {
                 </div>
               )}
 
-              {/* Botón de Corte */}
-              <Button
-                onClick={() => performCashCutMutation.mutate()}
-                disabled={!selectedShift || !cashCounted || performCashCutMutation.isPending}
-                className="w-full"
-                size="lg"
-              >
-                <FileText className="w-4 h-4 mr-2" />
-                Realizar {cutType === 'corte_x' ? 'Corte X' : 'Corte Z'}
-              </Button>
+              {/* Botones de Acción */}
+              <div className="space-y-2">
+                <Button
+                  onClick={handlePreviewCut}
+                  disabled={!selectedShift || !cashCounted}
+                  className="w-full"
+                  size="lg"
+                  variant="outline"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Previsualizar {cutType === 'corte_x' ? 'Corte X' : 'Corte Z'}
+                </Button>
+                
+                <Button
+                  onClick={() => performCashCutMutation.mutate()}
+                  disabled={!selectedShift || !cashCounted || performCashCutMutation.isPending}
+                  className="w-full"
+                  size="lg"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Realizar {cutType === 'corte_x' ? 'Corte X' : 'Corte Z'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -383,6 +412,15 @@ const CashCut = () => {
       </div>
       
       <FloatingNavigation />
+      
+      {/* Modal de Previsualización */}
+      <CashCutPreview
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        onConfirm={() => performCashCutMutation.mutate()}
+        isProcessing={performCashCutMutation.isPending}
+        cutData={cutPreviewData}
+      />
     </div>
   );
 };
